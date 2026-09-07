@@ -1,5 +1,6 @@
 export type Task = {
   id: string
+  ownerId: string
   title: string
   completed: boolean
   notes: string

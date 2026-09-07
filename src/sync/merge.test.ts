@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task.ts'
+import { deltaSince } from './time.ts'
 import { applyRemoteTask, remoteIsNewer, visibleTasks } from './merge.ts'
+
+const ownerId = '22222222-2222-4222-8222-222222222222'
 
 function task(overrides: Partial<Task> = {}): Task {
   return {
     id: '11111111-1111-4111-8111-111111111111',
+    ownerId,
     title: 'Buy milk',
     completed: false,
     notes: '',
@@ -36,6 +40,19 @@ describe('remoteIsNewer', () => {
       }),
     ).toBe(false)
   })
+
+  it('treats Z and +00:00 timestamps as the same instant', () => {
+    expect(
+      remoteIsNewer('2026-09-02T00:00:00.000Z', {
+        client_updated_at: '2026-09-02T00:00:00+00:00',
+      }),
+    ).toBe(true)
+    expect(
+      remoteIsNewer('2026-09-02T00:00:00+00:00', {
+        client_updated_at: '2026-09-01T00:00:00.000Z',
+      }),
+    ).toBe(false)
+  })
 })
 
 describe('applyRemoteTask', () => {
@@ -49,7 +66,7 @@ describe('applyRemoteTask', () => {
       created_at: local[0].created_at,
       client_updated_at: '2026-09-02T12:00:00.000Z',
       deleted_at: '2026-09-02T12:00:00.000Z',
-    })
+    }, ownerId)
 
     expect(applied).toBe(true)
     expect(items).toHaveLength(1)
@@ -72,10 +89,22 @@ describe('applyRemoteTask', () => {
       created_at: local[0].created_at,
       client_updated_at: '2026-09-03T00:00:00.000Z',
       deleted_at: null,
-    })
+    }, ownerId)
 
     expect(applied).toBe(false)
     expect(items[0].deleted_at).toBe('2026-09-04T00:00:00.000Z')
     expect(visibleTasks(items)).toEqual([])
+  })
+
+  it('does not apply a non-UUID id', () => {
+    const { items, applied } = applyRemoteTask([], { id: 'short-id', title: 'Nope' }, ownerId)
+    expect(applied).toBe(false)
+    expect(items).toEqual([])
+  })
+})
+
+describe('deltaSince', () => {
+  it('uses the same cursor for Z and +00:00 timestamps', () => {
+    expect(deltaSince('2026-09-02T00:00:10.000Z')).toBe(deltaSince('2026-09-02T00:00:10+00:00'))
   })
 })

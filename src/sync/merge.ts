@@ -1,3 +1,4 @@
+import { isUuid } from '../lib/id.ts'
 import type { RemoteTaskRow, Task } from '../types/task.ts'
 import { parseIso, utcNowIso } from './time.ts'
 
@@ -34,11 +35,12 @@ export function taskToRow(item: Task, userId: string) {
 export function applyRemoteTask(
   items: readonly Task[],
   row: RemoteTaskRow,
+  ownerId: string,
 ): { items: Task[]; applied: boolean } {
   const itemId = String(row.id ?? '')
-  if (!itemId) return { items: [...items], applied: false }
+  if (!isUuid(itemId) || !ownerId) return { items: [...items], applied: false }
 
-  const existingIndex = items.findIndex((item) => item.id === itemId)
+  const existingIndex = items.findIndex((item) => item.id === itemId && item.ownerId === ownerId)
   const existing = existingIndex >= 0 ? items[existingIndex] : undefined
   if (existing && !remoteIsNewer(existing.client_updated_at, row)) {
     return { items: [...items], applied: false }
@@ -47,6 +49,7 @@ export function applyRemoteTask(
   const now = utcNowIso()
   const next: Task = {
     id: itemId,
+    ownerId,
     title: String(row.title ?? ''),
     completed: Boolean(row.completed),
     notes: String(row.notes ?? ''),

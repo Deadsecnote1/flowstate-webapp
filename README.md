@@ -25,6 +25,8 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Use **Sync now** to pull then push tasks. Planner and Clock are not implemented yet.
+Open `http://localhost:5173`. Sign in, then use Tasks, Planner, and Clock. Edits sync about 2 seconds later, and again when you return to the tab. **Sync now** still works. Clock stays on this device and is not synced.
+
+Press `/` to jump to task search. Archive of completed tasks stays on this browser only.
 
 Do not commit `.env.local`.

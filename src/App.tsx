@@ -1,36 +1,61 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { LOCAL_OWNER } from './lib/id.ts'
 import { getSupabaseConfigError, supabase } from './lib/supabase.ts'
-import {
-  addTask,
-  deleteTask,
-  listVisibleTasks,
-  toggleTask,
-  updateTaskTitle,
-} from './db/tasks.ts'
+import { ClockPage } from './pages/ClockPage.tsx'
+import { PlannerPage } from './pages/PlannerPage.tsx'
+import { TasksPage } from './pages/TasksPage.tsx'
 import { syncNow } from './sync/engine.ts'
-import type { Task } from './types/task.ts'
 
-type FilterMode = 'all' | 'active' | 'done'
+type View = 'tasks' | 'planner' | 'clock'
 
 export default function App() {
   const configError = getSupabaseConfigError()
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [draft, setDraft] = useState('')
-  const [filter, setFilter] = useState<FilterMode>('all')
-  const [query, setQuery] = useState('')
+  const [view, setView] = useState<View>('tasks')
   const [syncStatus, setSyncStatus] = useState('Not signed in')
   const [syncing, setSyncing] = useState(false)
+  const [revision, setRevision] = useState(0)
+  const syncingRef = useRef(false)
+  const loadedSyncFor = useRef<string | null>(null)
+  const syncTimer = useRef<number | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
+  const ownerId = session?.user.id ?? LOCAL_OWNER
+  const signedIn = Boolean(session?.user.id)
 
-  const reloadTasks = useCallback(async () => {
-    setTasks(await listVisibleTasks())
+  const runSync = useCallback(async () => {
+    if (syncingRef.current) {
+      if (syncTimer.current) window.clearTimeout(syncTimer.current)
+      syncTimer.current = window.setTimeout(() => {
+        syncTimer.current = null
+        void runSync()
+      }, 2000)
+      return
+    }
+    syncingRef.current = true
+    setSyncing(true)
+    setSyncStatus('Syncing…')
+    try {
+      const message = await syncNow()
+      if (message == null) return
+      setSyncStatus(message)
+      setRevision((value) => value + 1)
+    } finally {
+      syncingRef.current = false
+      setSyncing(false)
+    }
   }, [])
 
-  useEffect(() => {
-    void reloadTasks()
-  }, [reloadTasks])
+  const scheduleSync = useCallback(() => {
+    setRevision((value) => value + 1)
+    if (!signedIn) return
+    if (syncTimer.current) window.clearTimeout(syncTimer.current)
+    syncTimer.current = window.setTimeout(() => {
+      syncTimer.current = null
+      void runSync()
+    }, 2000)
+  }, [signedIn, runSync])
 
   useEffect(() => {
     if (!supabase) {
@@ -47,41 +72,44 @@ export default function App() {
 
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
-      setSyncStatus(next ? 'Signed in' : 'Signed out')
+      if (!next) setSyncStatus('Signed out')
     })
 
     return () => data.subscription.unsubscribe()
   }, [])
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return tasks.filter((task) => {
-      if (filter === 'active' && task.completed) return false
-      if (filter === 'done' && !task.completed) return false
-      if (q && !task.title.toLowerCase().includes(q)) return false
-      return true
-    })
-  }, [tasks, filter, query])
-
-  async function onAdd(event: FormEvent) {
-    event.preventDefault()
-    const created = await addTask(draft)
-    if (!created) return
-    setDraft('')
-    await reloadTasks()
-  }
-
-  async function onSync() {
-    setSyncing(true)
-    setSyncStatus('Syncing…')
-    try {
-      const message = await syncNow()
-      setSyncStatus(message)
-      await reloadTasks()
-    } finally {
-      setSyncing(false)
+  useEffect(() => {
+    if (!signedIn || !session?.user.id) {
+      loadedSyncFor.current = null
+      return
     }
-  }
+    if (loadedSyncFor.current === session.user.id) return
+    loadedSyncFor.current = session.user.id
+    void runSync()
+  }, [signedIn, session?.user.id, runSync])
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && signedIn) void runSync()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [signedIn, runSync])
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+      if (typing) return
+      if (event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f')) {
+        event.preventDefault()
+        setView('tasks')
+        window.setTimeout(() => searchRef.current?.focus(), 0)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   async function onSignIn() {
     if (!supabase) return
@@ -101,18 +129,18 @@ export default function App() {
   const email = session?.user.email ?? ''
 
   return (
-    <div className="app">
+    <div className={view === 'planner' ? 'app wide' : 'app'}>
       <header className="topbar">
         <div>
           <p className="brand">Flowstate</p>
           <nav>
-            <button type="button" className="nav active">
+            <button type="button" className={view === 'tasks' ? 'nav active' : 'nav'} onClick={() => setView('tasks')}>
               Tasks
             </button>
-            <button type="button" disabled title="Not in this phase">
+            <button type="button" className={view === 'planner' ? 'nav active' : 'nav'} onClick={() => setView('planner')}>
               Planner
             </button>
-            <button type="button" disabled title="Not in this phase">
+            <button type="button" className={view === 'clock' ? 'nav active' : 'nav'} onClick={() => setView('clock')}>
               Clock
             </button>
           </nav>
@@ -133,113 +161,18 @@ export default function App() {
 
       {configError ? <p className="banner">{configError}</p> : null}
 
-      <main>
-        <div className="sync-row">
-          <button type="button" onClick={() => void onSync()} disabled={syncing || !!configError}>
-            Sync now
-          </button>
-          <p className="status">{syncStatus}</p>
-        </div>
-
-        <form className="add-row" onSubmit={(event) => void onAdd(event)}>
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Add a task"
-            aria-label="New task"
-          />
-        </form>
-
-        <div className="filters">
-          {(['all', 'active', 'done'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={filter === mode ? 'chip active' : 'chip'}
-              onClick={() => setFilter(mode)}
-            >
-              {mode === 'all' ? 'All' : mode === 'active' ? 'Active' : 'Done'}
-            </button>
-          ))}
-          <input
-            className="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search titles"
-            aria-label="Search tasks"
-          />
-        </div>
-
-        {visible.length === 0 ? <p className="empty">No tasks</p> : null}
-
-        <ul className="task-list">
-          {visible.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              onChanged={reloadTasks}
-            />
-          ))}
-        </ul>
-      </main>
-    </div>
-  )
-}
-
-function TaskRow({ task, onChanged }: { task: Task; onChanged: () => Promise<void> }) {
-  const [editing, setEditing] = useState(false)
-  const [title, setTitle] = useState(task.title)
-
-  async function commit() {
-    const next = title.trim()
-    setEditing(false)
-    if (!next || next === task.title) {
-      setTitle(task.title)
-      return
-    }
-    await updateTaskTitle(task.id, next)
-    await onChanged()
-  }
-
-  return (
-    <li className={task.completed ? 'task done' : 'task'}>
-      <input
-        type="checkbox"
-        checked={task.completed}
-        onChange={() => {
-          void toggleTask(task.id).then(onChanged)
-        }}
-        aria-label={`Complete ${task.title}`}
-      />
-      {editing ? (
-        <input
-          className="title-edit"
-          value={title}
-          autoFocus
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={() => void commit()}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void commit()
-            if (event.key === 'Escape') {
-              setTitle(task.title)
-              setEditing(false)
-            }
-          }}
-        />
-      ) : (
-        <button type="button" className="title" onClick={() => setEditing(true)}>
-          {task.title}
+      <div className="sync-row">
+        <button type="button" onClick={() => void runSync()} disabled={syncing || !!configError}>
+          Sync now
         </button>
-      )}
-      <button
-        type="button"
-        className="delete"
-        onClick={() => {
-          void deleteTask(task.id).then(onChanged)
-        }}
-      >
-        Delete
-      </button>
-    </li>
+        <p className="status">{syncStatus}</p>
+      </div>
+
+      {view === 'tasks' ? (
+        <TasksPage ownerId={ownerId} revision={revision} onEdited={scheduleSync} searchRef={searchRef} />
+      ) : null}
+      {view === 'planner' ? <PlannerPage ownerId={ownerId} revision={revision} onEdited={scheduleSync} /> : null}
+      {view === 'clock' ? <ClockPage ownerId={ownerId} /> : null}
+    </div>
   )
 }

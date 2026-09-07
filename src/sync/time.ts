@@ -2,9 +2,11 @@ export function utcNowIso(): string {
   return new Date().toISOString()
 }
 
+/** Accept Postgres `+00:00` and `Date.toISOString()` `Z` forms. */
 export function parseIso(value: string | null | undefined): Date | null {
   if (!value) return null
-  const parsed = new Date(value)
+  const text = value.trim().replace(/Z$/i, '+00:00')
+  const parsed = new Date(text)
   if (Number.isNaN(parsed.getTime())) return null
   return parsed
 }

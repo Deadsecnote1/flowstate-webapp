@@ -58,6 +58,10 @@ button:disabled {
   padding: 1.25rem 1rem 3rem;
 }
 
+.app.wide {
+  max-width: 1100px;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -167,4 +171,148 @@ nav button.active {
 
 .delete {
   color: var(--danger);
+}
+
+.muted,
+.title.muted {
+  color: var(--muted);
+}
+
+.archive-row,
+.editor-actions,
+.time-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.8rem 0;
+}
+
+.planner {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1rem;
+}
+
+.inbox,
+.editor,
+.day {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+
+.inbox h2,
+.editor-head {
+  margin: 0 0 0.6rem;
+}
+
+.inbox input,
+.editor input,
+.editor select,
+.editor textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+
+.editor {
+  position: sticky;
+  top: 0.8rem;
+}
+
+.editor label,
+.clock-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.check {
+  flex-direction: row;
+  align-items: center;
+}
+
+.day-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.hour {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 0.4rem;
+  min-height: 52px;
+  border-top: 1px solid var(--line);
+  padding: 0.25rem 0;
+  align-items: start;
+}
+
+.hour span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.hour-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.hour-hit {
+  min-height: 36px;
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.block {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: #1c1c1c;
+  border: 0;
+  margin-top: 0.25rem;
+}
+
+.color-coral { background: #f0a090; }
+.color-blue { background: #8eb6f5; }
+.color-green { background: #7dcaa3; }
+
+.block.done {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.clock-panel {
+  text-align: center;
+}
+
+.digits {
+  font-size: 3.4rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.4rem 0 1rem;
+}
+
+.laps {
+  text-align: left;
+  color: var(--muted);
+}
+
+@media (max-width: 800px) {
+  .planner {
+    grid-template-columns: 1fr;
+  }
 }
